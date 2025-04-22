@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-func copyFile(src, dst string) error {
+func CopyFile(src, dst string) error {
 	// Open the source file for reading
 	srcFile, err := os.Open(src)
 	if err != nil {

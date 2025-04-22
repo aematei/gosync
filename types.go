@@ -1,5 +1,9 @@
 package main
 
-type Config struct {
-	// TODO
+type CLIConfig struct {
+	Source  string
+	Dest    string
+	DryRun  bool
+	Verbose bool
+	Watch   bool
 }

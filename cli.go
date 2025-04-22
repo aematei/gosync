@@ -6,14 +6,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type CLIConfig struct {
-	Source  string
-	Dest    string
-	DryRun  bool
-	Verbose bool
-	Watch   bool
-}
-
 func NewRootCommand() *cobra.Command {
 	cfg := &CLIConfig{}
 
