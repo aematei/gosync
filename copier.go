@@ -3,10 +3,12 @@ package main
 import (
 	"io"
 	"os"
+	"path/filepath"
 )
 
 func CopyFile(src, dst string) error {
 	// Open the source file for reading
+	// Open returns a file descriptor only if err is nil
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err
@@ -19,6 +21,21 @@ func CopyFile(src, dst string) error {
 	// The file's directory must already exist
 
 	// TODO: Add folder creation with a mutex to support concurrent writes
+
+	// Isolate the path from dst
+	dstDir := filepath.Dir(dst)
+	// Go documentation uses os.Lstat for soome reason
+	// https://pkg.go.dev/os#example-FileMode
+	fi, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	// Try to make the dirs with the same permissions as the source file
+	err = os.MkdirAll(dstDir, fi.Mode().Perm())
+	if err != nil {
+		return err
+	}
+
 	dstFile, err := os.Create(dst)
 	if err != nil {
 		return err
