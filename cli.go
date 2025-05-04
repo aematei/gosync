@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
@@ -32,8 +33,23 @@ func NewRootCommand() *cobra.Command {
 
 func RunCLI(cfg CLIConfig) {
 	fmt.Println("🛠 GoSync CLI Starting...")
-	fmt.Println("Source Directory:", cfg.Source)
-	fmt.Println("Destination Directory:", cfg.Dest)
+	fmt.Println("Input Source Directory:", cfg.Source)
+	fmt.Println("Input Destination Directory:", cfg.Dest)
+
+	// Convert source and dest to absolute paths
+	var err error
+	cfg.Source, err = filepath.Abs(cfg.Source)
+	if err != nil {
+		panic("❌ Invalid source path: " + err.Error())
+	}
+
+	cfg.Dest, err = filepath.Abs(cfg.Dest)
+	if err != nil {
+		panic("❌ Invalid destination path: " + err.Error())
+	}
+
+	fmt.Println("Resolved Source Path:", cfg.Source)
+	fmt.Println("Resolved Destination Path:", cfg.Dest)
 
 	if cfg.DryRun {
 		fmt.Println("Running in dry-run mode (no files will be copied).")
@@ -49,6 +65,38 @@ func RunCLI(cfg CLIConfig) {
 		fmt.Println("Live sync is enabled (watch mode).")
 	}
 
-	// Stubbed out sync operation
-	fmt.Println("🚧 Sync operation not yet implemented.")
+	// TEMPORARY: simulate file metadata maps until walker is implemented
+	src := map[string]FileMeta{
+		"a.txt":           {Path: "a.txt", Size: 12},
+		"b.txt":           {Path: "b.txt", Size: 14},
+		"c.txt":           {Path: "c.txt", Size: 20},
+		"d.txt":           {Path: "d.txt", Size: 24},
+		"subfolder/e.txt": {Path: "subfolder/e.txt", Size: 23},
+		"subfolder/f.txt": {Path: "subfolder/f.txt", Size: 31},
+	}
+
+	dst := map[string]FileMeta{
+		"a.txt": {Path: "a.txt", Size: 12}, // unchanged
+		"b.txt": {Path: "b.txt", Size: 14}, // changed content
+
+	}
+
+	// Compare and detect changes
+	toCopy := CompareFiles(src, dst, cfg.DryRun, cfg.Verbose)
+
+	// If not dry-run, perform actual copying
+	if !cfg.DryRun {
+		for _, file := range toCopy {
+			srcPath := filepath.Join(cfg.Source, file.Path)
+			dstPath := filepath.Join(cfg.Dest, file.Path)
+
+			err := CopyFile(srcPath, dstPath)
+			if err != nil {
+				fmt.Printf("❌ Failed to copy %s: %v\n", file.Path, err)
+			} else if cfg.Verbose {
+				fmt.Printf("✅ Copied: %s\n", file.Path)
+			}
+		}
+		fmt.Println("✅ Sync operation completed.")
+	}
 }
