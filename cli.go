@@ -65,21 +65,22 @@ func RunCLI(cfg CLIConfig) {
 		fmt.Println("Live sync is enabled (watch mode).")
 	}
 
-	// TEMPORARY: simulate file metadata maps until walker is implemented
-	src := map[string]FileMeta{
-		"a.txt":           {Path: "a.txt", Size: 12},
-		"b.txt":           {Path: "b.txt", Size: 14},
-		"c.txt":           {Path: "c.txt", Size: 20},
-		"d.txt":           {Path: "d.txt", Size: 24},
-		"subfolder/e.txt": {Path: "subfolder/e.txt", Size: 23},
-		"subfolder/f.txt": {Path: "subfolder/f.txt", Size: 31},
+	// replacing temporary simulation with calls to GatherFiles (walker.go)
+	// slight changes so gatherfiles returns both src and dst
+	var src map[string]FileMeta
+	var dst map[string]FileMeta
+	srcFiles, dstFiles, err := GatherFiles(cfg.Source, cfg.Dest, cfg.Verbose)
+	if err != nil {
+		fmt.Println("Error gathering files:", err)
+		return
 	}
 
-	dst := map[string]FileMeta{
-		"a.txt": {Path: "a.txt", Size: 12}, // unchanged
-		"b.txt": {Path: "b.txt", Size: 14}, // changed content
+	src = srcFiles
+	dst = dstFiles
 
-	}
+	// PRINT FOR TROUBLESHOOTING
+	// fmt.Println("Source files:", src)
+	// fmt.Println("Destination files:", dst)
 
 	// Compare and detect changes
 	toCopy := CompareFiles(src, dst, cfg.DryRun, cfg.Verbose)
