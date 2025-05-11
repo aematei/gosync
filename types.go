@@ -16,3 +16,9 @@ type FileMeta struct {
 	Mode os.FileMode // for file permissions
 	Hash string      // SHA256 hash of the file
 }
+
+// Struct used to share information with worker goroutines
+type FileToCopyInfo struct {
+	SrcPath string
+	DstPath string
+}

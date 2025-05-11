@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"path/filepath"
+	"sync"
 
 	"github.com/spf13/cobra"
 )
@@ -87,17 +88,38 @@ func RunCLI(cfg CLIConfig) {
 
 	// If not dry-run, perform actual copying
 	if !cfg.DryRun {
+		const numWorkers = 10 // Number of concurrent copy operations
+		var wg sync.WaitGroup
+		tasks := make(chan FileToCopyInfo, numWorkers)
+
+		// Start worker goroutines
+		for i := 0; i < numWorkers; i++ {
+			go func() {
+				for task := range tasks {
+					err := CopyFile(task.SrcPath, task.DstPath)
+					if err != nil {
+						fmt.Printf("❌ Failed to copy to %s: %v\n", task.DstPath, err)
+					} else if cfg.Verbose {
+						fmt.Printf("✅ Copied to: %s\n", task.DstPath)
+					}
+					wg.Done()
+				}
+			}()
+		}
+
+		// Distribute copy tasks
 		for _, file := range toCopy {
 			srcPath := filepath.Join(cfg.Source, file.Path)
 			dstPath := filepath.Join(cfg.Dest, file.Path)
 
-			err := CopyFile(srcPath, dstPath)
-			if err != nil {
-				fmt.Printf("❌ Failed to copy %s: %v\n", file.Path, err)
-			} else if cfg.Verbose {
-				fmt.Printf("✅ Copied: %s\n", file.Path)
-			}
+			wg.Add(1)
+			tasks <- FileToCopyInfo{SrcPath: srcPath, DstPath: dstPath}
 		}
+
+		// Close tasks channel
+		close(tasks)
+		wg.Wait()
+
 		fmt.Println("✅ Sync operation completed.")
 	}
 }
