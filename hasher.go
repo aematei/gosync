@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sync"
+	"path/filepath"
 )
 
 // calculateHash calculates the SHA256 hash of a file.
 // It reads the file in chunks to handle large files efficiently.
 func calculateHash(filePath string) (string, error) {
+	// fmt.Printf("Calculating hash for file: %s\n", filePath)
 	file, err := os.Open(filePath)
 	if err != nil {
 		return "", err
@@ -40,27 +41,15 @@ func calculateHash(filePath string) (string, error) {
 
 // HashFileMeta calculates the SHA256 hash of the file specified in the FileMeta struct.
 // It then adds that hash vaule to the struct. A new FileMeta is returned with the hash.
-func HashFileMeta(fm FileMeta) (FileMeta, error) {
+func HashFileMeta(fm FileMeta, root string) (FileMeta, error) {
 	// call that file above to actually get the hash
-	hash, err := calculateHash(fm.Path)
+
+	absolutePath := filepath.Join(root, fm.Path) // Use the absolute path
+
+	hash, err := calculateHash(absolutePath)
 	if err != nil {
 		return fm, err // returns new FileMeta and error values
 	}
 	fm.Hash = hash
 	return fm, nil
-}
-
-// like the same but running concurrently
-func ConcurrentHashFileMeta(fm FileMeta, jobs chan FileMeta, results chan FileMeta, wg *sync.WaitGroup) {
-	defer wg.Done()
-	hash, err := calculateHash(fm.Path)
-	if err != nil {
-		// error go to error channel instead of returning it (and print file with isssue)
-		fmt.Printf("Error calculating hash for %s: %v\n", fm.Path, err)
-		fm.Hash = "" //set to empty string
-		results <- fm
-		return
-	}
-	fm.Hash = hash
-	results <- fm
 }

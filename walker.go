@@ -18,7 +18,7 @@ func walkDir(root string, filesChan chan<- FileMeta, errChan chan<- error, verbo
 	// start worker goroutines to calculate hashes concurrently
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
-		go ConcurrentHashFileMetaWorker(jobs, results, &wg)
+		go ConcurrentHashFileMetaWorker(jobs, results, &wg, root)
 	}
 
 	// use a separate goroutine to forward results to filesChan
@@ -76,10 +76,10 @@ func walkDir(root string, filesChan chan<- FileMeta, errChan chan<- error, verbo
 }
 
 // ConcurrentHashFileMetaWorker is a worker goroutine that calculates the hash of a file
-func ConcurrentHashFileMetaWorker(jobs <-chan FileMeta, results chan<- FileMeta, wg *sync.WaitGroup) {
+func ConcurrentHashFileMetaWorker(jobs <-chan FileMeta, results chan<- FileMeta, wg *sync.WaitGroup, root string) {
 	defer wg.Done()
 	for fm := range jobs {
-		hashedFm, err := HashFileMeta(fm) // functions in hasher.go handle this
+		hashedFm, err := HashFileMeta(fm, root) // functions in hasher.go handle this
 		if err != nil {
 			fmt.Printf("Error calculating hash for %s: %v\n", fm.Path, err)
 			hashedFm.Hash = ""
