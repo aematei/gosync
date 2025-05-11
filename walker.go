@@ -59,7 +59,7 @@ func walkDir(root string, filesChan chan<- FileMeta, errChan chan<- error, verbo
 			return nil
 		}
 		fileMeta := FileMeta{
-			Path: filepath.Join(root, relPath), // Use the absolute path
+			Path: relPath,
 			Size: fileInfo.Size(),
 			Mode: fileInfo.Mode(),
 		}
