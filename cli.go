@@ -14,7 +14,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "gosync",
 		Short: "GoSync is a fast and reliable file synchronization tool.",
-		Long:  "GoSync synchronizes files from a source directory to a destination directory with features like dry-run, verbose logging, live sync, and concurrent processing.",
+		Long:  "GoSync synchronizes files from a source directory to a destination directory with features like dry-run, verbose logging, and concurrent processing.",
 		Run: func(cmd *cobra.Command, args []string) {
 			RunCLI(*cfg)
 		},
@@ -24,7 +24,6 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.Flags().StringVarP(&cfg.Dest, "dest", "d", "", "Destination directory to sync to (required)")
 	rootCmd.Flags().BoolVarP(&cfg.DryRun, "dry-run", "r", false, "Preview changes without copying")
 	rootCmd.Flags().BoolVarP(&cfg.Verbose, "verbose", "v", false, "Output detailed logs")
-	rootCmd.Flags().BoolVarP(&cfg.Watch, "watch", "w", false, "Enable live syncing with fsnotify")
 
 	rootCmd.MarkFlagRequired("source")
 	rootCmd.MarkFlagRequired("dest")
@@ -62,10 +61,6 @@ func RunCLI(cfg CLIConfig) {
 		fmt.Println("Verbose logging is enabled.")
 	}
 
-	if cfg.Watch {
-		fmt.Println("Live sync is enabled (watch mode).")
-	}
-
 	// replacing temporary simulation with calls to GatherFiles (walker.go)
 	// slight changes so gatherfiles returns both src and dst
 	var src map[string]FileMeta
@@ -78,10 +73,6 @@ func RunCLI(cfg CLIConfig) {
 
 	src = srcFiles
 	dst = dstFiles
-
-	// PRINT FOR TROUBLESHOOTING
-	// fmt.Println("Source files:", src)
-	// fmt.Println("Destination files:", dst)
 
 	// Compare and detect changes
 	toCopy := CompareFiles(src, dst, cfg.DryRun, cfg.Verbose)
