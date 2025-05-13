@@ -9,33 +9,31 @@ import (
 )
 
 // walkDir function walks the directory at the given root path and sends FileMeta structs to the provided channel.
-func walkDir(root string, filesChan chan<- FileMeta, errChan chan<- error, verbose bool) {
-	var wg sync.WaitGroup
+func walkDir(root string, filesChan chan<- FileMeta, errChan chan<- error, verbose bool, wg *sync.WaitGroup) {
+	defer wg.Done() // Signal when this walkDir is done (to GatherFiles)
+
+	var hashWg sync.WaitGroup
 	concurrency := runtime.NumCPU() * 4
 	jobs := make(chan FileMeta, concurrency)
 	results := make(chan FileMeta, concurrency)
 
 	// start worker goroutines to calculate hashes concurrently
 	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
-		go ConcurrentHashFileMetaWorker(jobs, results, &wg, root)
+		hashWg.Add(1)
+		go ConcurrentHashFileMetaWorker(jobs, results, &hashWg, root)
 	}
 
-	// use a separate goroutine to forward results to filesChan
+	// Forward results in a separate goroutine (but track when it completes)
+	var forwardWg sync.WaitGroup
+	forwardWg.Add(1)
 	go func() {
+		defer forwardWg.Done() // This is crucial - signals when forwarding is done
 		for result := range results {
 			filesChan <- result
 		}
 	}()
 
-	// close channels and wait for workers
-	defer func() {
-		close(jobs)    // close jobs because walk is done
-		wg.Wait()      // wait for workers to finish
-		close(results) // close channels now that its done. MUST close after workers finish
-		// filesChan is closed by GatherFiles
-	}()
-
+	// Walk the directory and send jobs
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			fmt.Printf("Error walking path %s: %v\n", path, err)
@@ -73,6 +71,18 @@ func walkDir(root string, filesChan chan<- FileMeta, errChan chan<- error, verbo
 	if err != nil {
 		errChan <- err
 	}
+
+	// Close jobs when walking is done
+	close(jobs)
+
+	// Wait for hash workers to finish
+	hashWg.Wait()
+
+	// Close results once all hashing is done
+	close(results)
+
+	// Wait for forwarding to finish before returning
+	forwardWg.Wait()
 }
 
 // ConcurrentHashFileMetaWorker is a worker goroutine that calculates the hash of a file
@@ -83,7 +93,6 @@ func ConcurrentHashFileMetaWorker(jobs <-chan FileMeta, results chan<- FileMeta,
 		if err != nil {
 			fmt.Printf("Error calculating hash for %s: %v\n", fm.Path, err)
 			hashedFm.Hash = ""
-			fmt.Printf("ConcurrentHashFileMetaWorker: Sending to results (error): %s\n", fm.Path)
 			results <- hashedFm
 			continue
 		}
@@ -98,51 +107,64 @@ func GatherFiles(sourceRoot, destRoot string, verbose bool) (srcFiles, dstFiles 
 	dstFilesChan := make(chan FileMeta)
 	errChan := make(chan error)
 
-	// uses a WaitGroup to wait for both walks to complete
-	var wg sync.WaitGroup
-	wg.Add(2)
+	// Use a WaitGroup to track when walkDir functions complete
+	var walkWg sync.WaitGroup
+	walkWg.Add(2)
 
-	// starts the directory walk for the source in a separate goroutine
-	go func() {
-		defer wg.Done()
-		walkDir(sourceRoot, srcFilesChan, errChan, verbose)
-	}()
-
-	// starts the directory walk for the destination in a separate goroutine
-	go func() {
-		defer wg.Done()
-		walkDir(destRoot, dstFilesChan, errChan, verbose)
-	}()
+	// Start the directory walks
+	go walkDir(sourceRoot, srcFilesChan, errChan, verbose, &walkWg)
+	go walkDir(destRoot, dstFilesChan, errChan, verbose, &walkWg)
 
 	srcFilesMap := make(map[string]FileMeta)
 	dstFilesMap := make(map[string]FileMeta)
 	errors := make([]error, 0) // slice to collect errors
 
-	// Function to read from a filesChan and store into a map.
+	// Collect errors in a goroutine
+	var errDone = make(chan struct{})
+	go func() {
+		for err := range errChan {
+			errors = append(errors, err)
+		}
+		close(errDone)
+	}()
+
+	// Function to read from a filesChan and store into a map
 	readFilesChan := func(filesChan <-chan FileMeta, filesMap map[string]FileMeta) {
 		for fileMeta := range filesChan {
 			filesMap[fileMeta.Path] = fileMeta
 		}
 	}
 
-	// reaD from the channels in separate goroutines
-	go readFilesChan(srcFilesChan, srcFilesMap)
-	go readFilesChan(dstFilesChan, dstFilesMap)
+	// Read from channels in separate goroutines
+	var readWg sync.WaitGroup
+	readWg.Add(2)
+	go func() {
+		readFilesChan(srcFilesChan, srcFilesMap)
+		readWg.Done()
+	}()
+	go func() {
+		readFilesChan(dstFilesChan, dstFilesMap)
+		readWg.Done()
+	}()
 
-	wg.Wait()
+	// Wait for all walk operations to complete
+	walkWg.Wait()
 	fmt.Println("All walks complete. Closing channels...")
-	close(errChan)
-	close(srcFilesChan) // close the filesChans here, after all data is read.
+
+	// Safe to close the channels now as all producers are done
+	close(srcFilesChan)
 	close(dstFilesChan)
 
-	// collect errors
-	for err := range errChan {
-		errors = append(errors, err)
-	}
+	// Wait for reads to complete
+	readWg.Wait()
 
-	// return the maps and the errors.
+	// Close error channel
+	close(errChan)
+	<-errDone
+
+	// Return the maps and any errors
 	if len(errors) > 0 {
-		return srcFilesMap, dstFilesMap, fmt.Errorf("multiple errors: %v", errors) //wrap multiple errors
+		return srcFilesMap, dstFilesMap, fmt.Errorf("multiple errors: %v", errors)
 	}
 	return srcFilesMap, dstFilesMap, nil
 }

@@ -1,6 +1,6 @@
 # GoSync
 
-GoSync is a fast and reliable command-line tool written in Go that synchronizes files from a source directory to a destination directory. It detects additions or modifications and copies files accordingly, with optional features like dry-run mode, verbose logging, live sync, and concurrent file processing.
+GoSync is a fast and reliable command-line tool written in Go that synchronizes files from a source directory to a destination directory. It detects additions or modifications and copies files accordingly, with optional features like dry-run mode, verbose logging, and concurrent file processing.
 
 ## Features
 
@@ -8,12 +8,11 @@ GoSync is a fast and reliable command-line tool written in Go that synchronizes 
 - 🧪 Dry-run mode to preview changes without writing
 - 📣 Verbose logging for detailed output
 - ⚡ Concurrent file hashing and copying
-- 🔄 Optional live sync using filesystem notifications
 
 ## Usage
 
 ```bash
-gosync --source /path/to/source --dest /path/to/dest [--dry-run] [--verbose] [--watch]
+gosync --source /path/to/source --dest /path/to/dest [--dry-run] [--verbose]
 ```
 | Flag        | Description                          |
 |-------------|--------------------------------------|
@@ -21,7 +20,6 @@ gosync --source /path/to/source --dest /path/to/dest [--dry-run] [--verbose] [--
 | `--dest`    | Destination directory to sync to     |
 | `--dry-run` | Preview changes without copying      |
 | `--verbose` | Output detailed logs                 |
-| `--watch`   | Enable live syncing with fsnotify    |
 
 ## Directory Structure and Component Descriptions
 ```
@@ -32,8 +30,18 @@ gosync --source /path/to/source --dest /path/to/dest [--dry-run] [--verbose] [--
 ├── hasher.go          # Calculates file hashes, optionally concurrent
 ├── comparator.go      # Compares file metadata to detect changes
 ├── copier.go          # Manages file copying with a worker pool
-├── watcher.go         # Optional: live sync with fsnotify
 ├── types.go           # Shared structs and constants
 ├── go.mod             # Go module definition
 └── README.md          # Project documentation
 ```
+
+## How It Works
+
+GoSync works by:
+
+1. Walking both source and destination directories concurrently
+2. Calculating SHA256 hashes of all files for comparison
+3. Detecting which files are new or modified
+4. Using a worker pool to copy files efficiently
+
+The tool uses Go's concurrency model with goroutines and channels to maximize performance on multi-core systems.
