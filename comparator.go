@@ -12,7 +12,7 @@ func CompareFiles(src, dst map[string]FileMeta, dryRun, verbose bool) []FileMeta
 	for path, srcMeta := range src {
 		dstMeta, exists := dst[path]
 
-		if !exists || srcMeta.Size != dstMeta.Size {
+		if !exists || srcMeta.Size != dstMeta.Size || srcMeta.Hash != dstMeta.Hash {
 			toCopy = append(toCopy, srcMeta)
 
 			if dryRun {
