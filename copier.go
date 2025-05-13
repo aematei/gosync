@@ -20,8 +20,6 @@ func CopyFile(src, dst string) error {
 	// If the file exists, it will be truncated to zero bytes
 	// The file's directory must already exist
 
-	// TODO: Add folder creation with a mutex to support concurrent writes
-
 	// Isolate the path from dst
 	dstDir := filepath.Dir(dst)
 	// Go documentation uses os.Lstat for soome reason
